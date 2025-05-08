@@ -1,162 +1,146 @@
-import prisma from "../../prisma/prisma.js";
+import CardModel from "../models/cardModel.js";
 
-class CardModel {
-  // Obter todas as cartas
-  async findAll(raridade, ataque, pagina, limite) {
-    if (Number(pagina) < 1) {
-      pagina = 1;
+class CardController {
+  // GET /cartas
+  async getAllCards(req, res) {
+    const raridade = req.query.raridade;
+    const ataque = req.query.ataque;
+    const pagina = req.query.pagina || 1;
+    const limite = req.query.limite || 10;
+
+    try {
+      const cartas = await CardModel.findAll(raridade, ataque, pagina, limite);
+      res.json(cartas);
+    } catch (error) {
+      console.error("Erro ao buscar as cartas:", error);
+      res.status(500).json({ error: "Erro ao buscar as cartas" });
     }
-
-    if (Number(limite) < 1 || Number(limite) > 100) {
-      limite = 10;
-    }
-
-    const skip = (Number(pagina) - 1) * Number(limite);
-
-    const where = {};
-
-    if (raridade) {
-      where.rarity = raridade;
-    }
-
-    if (ataque) {
-      where.attackPoints = {
-        gte: Number(ataque),
-      };
-    }
-
-    const cartas = await prisma.card.findMany({
-      /* where: {
-        rarity: "Ultra Rare",
-      }, */
-      /* where: {
-        attackPoints: {
-          lte: 8000, // Menor ou igual a 8000
-        },
-      }, */
-
-      /* where: {
-        attackPoints: {
-          gte: Number(ataque),
-        },
-        rarity: raridade,
-      }, */
-      skip,
-      take: Number(limite),
-      where,
-      orderBy: {
-        createdAt: "desc",
-      },
-      include: {
-        collection: {
-          select: {
-            name: true,
-            description: true,
-            releaseYear: true,
-          },
-        },
-      },
-    });
-
-    const totalExibidos = cartas.length;
-    const totalGeral = await prisma.card.count({
-      where,
-    })
-
-    const total = await prisma.card.count({ where });
-
-    // console.log(cartas);
-
-    return { cartas, total };
   }
 
-  // Obter uma carta pelo ID
-  async findById(id) {
-    const carta = await prisma.card.findUnique({
-      where: {
-        id: Number(id),
-      },
-      include: {
-        collection: true,
-      },
-    });
+  // GET /cartas/:id
+  async getCardById(req, res) {
+    try {
+      const { id } = req.params;
 
-    return carta;
+      const carta = await CardModel.findById(id);
+
+      if (!carta) {
+        return res.status(404).json({ error: "Carta não encontrada!" });
+      }
+
+      res.json(carta);
+    } catch (error) {
+      console.error("Erro ao buscar carta:", error);
+      res.status(500).json({ error: "Erro ao buscar carta!" });
+    }
   }
 
-  // Criar uma nova carta
-  async create(
-    name,
-    rarity,
-    attackPoints,
-    defensePoints,
-    imageUrl,
-    collectionId
-  ) {
-    const novaCarta = await prisma.card.create({
-      data: {
+  // POST /cartas
+  async createCard(req, res) {
+    try {
+      // Captura dos dados do corpo da requisição (frontend)
+      const {
         name,
         rarity,
         attackPoints,
         defensePoints,
         imageUrl,
-        collectionId: Number(collectionId),
-      },
-    });
+        collectionId,
+      } = req.body;
 
-    return novaCarta;
-  }
+      // Verifica se todos os campos da carta foram fornecidos
+      if (
+        !name ||
+        !rarity ||
+        !attackPoints ||
+        !defensePoints ||
+        !collectionId
+      ) {
+        return res.status(400).json({
+          error:
+            "Os campos nome, raridade, pontos de ataque, pontos de defesa e o id da coleção são obrigatórios",
+        });
+      }
 
-  // Atualizar uma carta
-  async update(
-    id,
-    name,
-    rarity,
-    attackPoints,
-    defensePoints,
-    imageUrl,
-    collectionId
-  ) {
-    const carta = await this.findById(id);
-
-    if (!carta) {
-      return null;
-    }
-
-    // Atualize a carta existente com os novos dados
-    const cartaAtualizada = await prisma.card.update({
-      where: {
-        id: Number(id),
-      },
-      data: {
+      // Criar a nova Carta
+      const newCard = await CardModel.create(
         name,
         rarity,
         attackPoints,
         defensePoints,
         imageUrl,
-        collectionId: Number(collectionId),
-      },
-    });
+        collectionId
+      );
 
-    return cartaAtualizada;
+      if (!newCard) {
+        return res.status(400).json({ error: "Erro ao criar carta" });
+      }
+
+      res.status(201).json({
+        message: "Carta criada com sucesso",
+        newCard,
+      });
+    } catch (error) {
+      console.error("Erro ao criar Carta:", error);
+      res.status(500).json({ error: "Erro ao criar Carta" });
+    }
   }
 
-  // Remover uma carta
-  async delete(id) {
-    const carta = await this.findById(id);
+  // PUT /cartas/:id
+  async updateCard(req, res) {
+    try {
+      const { id } = req.params;
+      const {
+        name,
+        rarity,
+        attackPoints,
+        defensePoints,
+        imageUrl,
+        collectionId,
+      } = req.body;
 
-    if (!carta) {
-      return null;
+      // Atualizar a Carta
+      const updatedCard = await CardModel.update(
+        id,
+        name,
+        rarity,
+        attackPoints,
+        defensePoints,
+        imageUrl,
+        collectionId
+      );
+
+      if (!updatedCard) {
+        return res.status(404).json({ error: "Carta não encontrada" });
+      }
+
+      res.json(updatedCard);
+    } catch (error) {
+      console.error("Erro ao atualizar Carta:", error);
+      res.status(500).json({ error: "Erro ao atualizar Carta!" });
     }
+  }
 
-    await prisma.card.delete({
-      where: {
-        id: Number(id),
-      },
-    });
+  // DELETE /cartas/:id
+  async deleteCard(req, res) {
+    try {
+      const { id } = req.params;
 
-    return true;
+      // Remover a Carta
+      const result = await CardModel.delete(id);
+
+      if (!result) {
+        return res.status(404).json({ error: "Carta não encontrada!" });
+      }
+
+      res.status(200).json({
+        message: "Carta removida com sucesso",
+      });
+    } catch (error) {
+      console.error("Erro ao remover Carta:", error);
+      res.status(500).json({ error: "Erro ao remover Carta!" });
+    }
   }
 }
 
-export default new CardModel();
+export default new CardController();
