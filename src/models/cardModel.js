@@ -2,23 +2,36 @@ import prisma from "../../prisma/prisma.js";
 
 class CardModel {
   // Obter todas as cartas
-  async findAll() {
-    // Raridade Ultra Rare
-    // Como fica maior ou igual que em inglês? Resposta: greater than
+  async findAll(raridade, ataque) {
+    const where = {};
+
+    if (raridade) {
+      where.rarity = raridade;
+    }
+
+    if (ataque) {
+      where.attackPoints = {
+        gte: Number(ataque),
+      };
+    }
+
     const cartas = await prisma.card.findMany({
       /* where: {
-      rarity: "Ultra Rare",
+        rarity: "Ultra Rare",
       }, */
       /* where: {
         attackPoints: {
-          lte: 8000,
+          lte: 8000, // Menor ou igual a 8000
         },
       }, */
-      where: {
+
+      /* where: {
         attackPoints: {
-          gte: 8000, // Maior ou igual a 8000
+          gte: Number(ataque),
         },
-      },
+        rarity: raridade,
+      }, */
+      where,
       orderBy: {
         createdAt: "desc",
       },
